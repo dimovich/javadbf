@@ -60,6 +60,8 @@ public class DBFWriter extends DBFBase implements java.io.Closeable {
 	private RandomAccessFile raf = null;
 	private OutputStream outputStream = null;
 
+    private boolean has_eod = false;
+
 	private boolean closed = false;
 
 	/**
@@ -182,8 +184,13 @@ public class DBFWriter extends DBFBase implements java.io.Closeable {
 				// position file pointer at the end of the raf
 				// to ignore the END_OF_DATA byte at EoF
 				// only if there are records,
-				if (this.raf.length() > header.headerLength) {
-					this.raf.seek(this.raf.length() - 1);
+				this.raf.seek(this.raf.length() - 1);
+				if ((raf.readByte() & 0xFF) == END_OF_DATA) {
+				    this.has_eod = true;
+				}
+
+				if ((this.raf.length() > header.headerLength) && this.has_eod ) {
+				    this.raf.seek(this.raf.length() - 1);
 				}
 				else {
 					this.raf.seek(this.raf.length());
@@ -395,11 +402,15 @@ public class DBFWriter extends DBFBase implements java.io.Closeable {
 			 * record count and the END_OF_DATA mark
 			 */
 			try {
-				this.header.numberOfRecords = this.recordCount;
-				this.raf.seek(0);
-				this.header.write(this.raf);
-				this.raf.seek(this.raf.length());
-				this.raf.writeByte(END_OF_DATA);
+			    //this.header.numberOfRecords = this.recordCount;
+				this.raf.seek(4);
+				this.raf.writeInt(DBFUtils.littleEndian(this.recordCount));
+				
+			    //this.header.write(this.raf);
+				if(this.has_eod) {
+				    this.raf.seek(this.raf.length());
+				    this.raf.writeByte(END_OF_DATA);
+				}
 			}
 			catch (IOException e) {
 				throw new DBFException(e.getMessage(), e);
@@ -471,7 +482,7 @@ public class DBFWriter extends DBFBase implements java.io.Closeable {
 						dataOutput.write((byte) 'F');
 					}
 				} else {
-					dataOutput.write((byte) '?');
+					dataOutput.write((byte) ' ');
 				}
 
 				break;
